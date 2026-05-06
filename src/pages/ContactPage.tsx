@@ -1,0 +1,171 @@
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import ScrollReveal from '../components/ScrollReveal'
+
+export default function ContactPage() {
+  const { t } = useTranslation()
+  const [form, setForm] = useState({ name: '', email: '', phone: '', message: '', product: '' })
+
+  const contactDetails = [
+    { icon: 'location_on', label: t('contact.address'), value: 'Mubarakpur, Ambedkar Nagar,\nTanda – 224190,\nUttar Pradesh, India' },
+    { icon: 'call', label: t('contact.phone'), value: '+91 94151 39838\n+91 94151 39837' },
+    { icon: 'person', label: t('contact.person'), value: 'Mr. Ghufran\n(Marketing Manager)' },
+    { icon: 'schedule', label: t('contact.hours'), value: t('contact.hoursVal') },
+    { icon: 'verified', label: 'GST Number', value: '09AADFK7950N1ZP' },
+  ]
+  const [submitted, setSubmitted] = useState(false)
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    setForm(f => ({ ...f, [e.target.name]: e.target.value }))
+  }
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    setSubmitted(true)
+  }
+
+  return (
+    <main>
+      {/* Hero */}
+      <section className="bg-primary py-32 px-8 md:px-16">
+        <div className="max-w-[1440px] mx-auto">
+          <span className="section-label text-secondary-gold mb-4 block">{t('contact.badge')}</span>
+          <h1 className="font-grotesk font-bold text-4xl md:text-6xl text-white mb-4">{t('contact.title')}</h1>
+          <p className="font-manrope text-body-lg text-white/60 max-w-xl">
+            {t('contact.subtitle')}
+          </p>
+        </div>
+      </section>
+
+      {/* Contact Grid */}
+      <section className="py-section bg-white">
+        <div className="max-w-[1440px] mx-auto px-8 md:px-16 grid grid-cols-1 lg:grid-cols-5 gap-16">
+
+          {/* Contact Info */}
+          <div className="lg:col-span-2 space-y-10">
+            <ScrollReveal>
+              <h2 className="font-grotesk font-semibold text-h2 text-primary mb-8">{t('contact.details')}</h2>
+              <div className="space-y-7">
+                {contactDetails.map(item => (
+                  <div key={item.label} className="flex gap-4">
+                    <div className="w-10 h-10 bg-surface-low flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="material-symbols-outlined text-primary" style={{ fontSize: '20px' }}>{item.icon}</span>
+                    </div>
+                    <div>
+                      <div className="font-grotesk text-label uppercase tracking-widest text-outline mb-1">{item.label}</div>
+                      <div className="font-manrope text-body text-on-surface whitespace-pre-line">{item.value}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollReveal>
+
+            {/* Quick call CTA */}
+            <ScrollReveal delay={100}>
+              <div className="border-l-4 border-secondary-gold pl-6 py-4">
+                <p className="font-manrope text-sm text-on-surface-variant mb-3">{t('contact.immediateHelp')}</p>
+                <a href="tel:+919415139838"
+                  className="inline-flex items-center gap-2 bg-primary text-white px-6 py-3 font-grotesk text-label uppercase tracking-widest hover:bg-secondary-gold hover:text-primary transition-all duration-300">
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>call</span>
+                  +91 94151 39838
+                </a>
+              </div>
+            </ScrollReveal>
+          </div>
+
+          {/* Contact Form */}
+          <div className="lg:col-span-3">
+            <ScrollReveal delay={100}>
+              {submitted ? (
+                <div className="flex flex-col items-center justify-center text-center py-24 bg-surface-low">
+                  <span className="material-symbols-outlined text-7xl text-primary mb-6">check_circle</span>
+                  <h3 className="font-grotesk font-semibold text-h2 text-primary mb-3">{t('contact.success.title')}</h3>
+                  <p className="font-manrope text-body text-on-surface-variant mb-8 max-w-sm">
+                    {t('contact.success.desc')}
+                  </p>
+                  <button onClick={() => setSubmitted(false)}
+                    className="btn-outline">
+                    {t('contact.success.again')}
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleSubmit} className="space-y-6">
+                  <h2 className="font-grotesk font-semibold text-h2 text-primary mb-8">{t('contact.form.title')}</h2>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="font-grotesk text-label uppercase tracking-widest text-outline block mb-2">{t('contact.form.name')} *</label>
+                      <input required name="name" value={form.name} onChange={handleChange} placeholder={t('contact.form.namePH')}
+                        className="w-full border-b-2 border-outline-variant bg-transparent py-3 font-manrope text-body focus:outline-none focus:border-primary transition-colors placeholder:text-outline" />
+                    </div>
+                    <div>
+                      <label className="font-grotesk text-label uppercase tracking-widest text-outline block mb-2">{t('contact.form.phone')} *</label>
+                      <input required name="phone" value={form.phone} onChange={handleChange} placeholder={t('contact.form.phonePH')} type="tel"
+                        className="w-full border-b-2 border-outline-variant bg-transparent py-3 font-manrope text-body focus:outline-none focus:border-primary transition-colors placeholder:text-outline" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="font-grotesk text-label uppercase tracking-widest text-outline block mb-2">{t('contact.form.email')}</label>
+                    <input name="email" value={form.email} onChange={handleChange} placeholder={t('contact.form.emailPH')} type="email"
+                      className="w-full border-b-2 border-outline-variant bg-transparent py-3 font-manrope text-body focus:outline-none focus:border-primary transition-colors placeholder:text-outline" />
+                  </div>
+
+                  <div>
+                    <label className="font-grotesk text-label uppercase tracking-widest text-outline block mb-2">{t('contact.form.product')}</label>
+                    <select name="product" value={form.product} onChange={handleChange}
+                      className="w-full border-b-2 border-outline-variant bg-transparent py-3 font-manrope text-body focus:outline-none focus:border-primary transition-colors text-on-surface">
+                      <option value="">{t('contact.form.productPH')}</option>
+                      <option value="rice-mill">{t('home.categories.riceMill.title')}</option>
+                      <option value="poultry-feed">{t('home.categories.poultry.title')}</option>
+                      <option value="other">Other / Custom Requirement</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="font-grotesk text-label uppercase tracking-widest text-outline block mb-2">{t('contact.form.message')}</label>
+                    <textarea required name="message" value={form.message} onChange={handleChange} rows={5}
+                      placeholder={t('contact.form.messagePH')}
+                      className="w-full border-b-2 border-outline-variant bg-transparent py-3 font-manrope text-body focus:outline-none focus:border-primary transition-colors placeholder:text-outline resize-none" />
+                  </div>
+
+                  <button type="submit"
+                    className="btn-primary w-full text-center">
+                    {t('contact.form.submit')}
+                  </button>
+                  <p className="font-manrope text-xs text-outline text-center">
+                    {t('contact.form.immediate')} <a href="tel:+91 9415139837,+91 9415139838" className="text-primary hover:underline">+91 9415139837,+91 9415139838</a>
+                  </p>
+                </form>
+              )}
+            </ScrollReveal>
+          </div>
+        </div>
+      </section>
+
+      {/* Google Maps */}
+      <section className="bg-surface-low">
+        <div className="max-w-[1440px] mx-auto px-8 md:px-16 pb-section">
+          <ScrollReveal>
+            <div className="mb-8">
+              <span className="section-label text-primary mb-2 block">{t('contact.map.badge')}</span>
+              <h2 className="font-grotesk font-semibold text-h2 text-primary">{t('contact.map.title')}</h2>
+            </div>
+            <div className="w-full h-[450px] border border-outline-variant overflow-hidden">
+              <iframe
+                src="https://www.google.com/maps/embed?pb=!1m14!1m8!1m3!1d223.0871040227211!2d82.68519282266705!3d26.539618483538398!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3990e91fe6b711f5%3A0x898176e831515a65!2sKRISHI%20VIKAS%20UDYOG!5e0!3m2!1sen!2s!4v1777542879365!5m2!1sen!2s"
+                width="100%"
+                height="450"
+                style={{ border: 0 }}
+                allowFullScreen
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                title="Krishi Vikas Udyog Location"
+              />
+            </div>
+          </ScrollReveal>
+        </div>
+      </section>
+    </main>
+  )
+}
