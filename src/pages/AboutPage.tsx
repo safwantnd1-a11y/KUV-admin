@@ -1,6 +1,8 @@
 import ScrollReveal from '../components/ScrollReveal'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { useSiteImages } from '../hooks/useSiteImages'
+import StorySlideshow from '../components/StorySlideshow'
 
 const timeline = [
   { year: '1983', title: 'Founded', desc: 'Krishi Vikas Udyog established in Tanda, Uttar Pradesh with a vision to empower Indian farmers with quality machinery.' },
@@ -34,12 +36,13 @@ const strengths = [
 
 export default function AboutPage() {
   const { t } = useTranslation()
+  const { images, aboutStoryPhotos } = useSiteImages()
   return (
     <main>
       {/* Hero */}
       <section className="bg-primary py-32 px-8 md:px-16 relative overflow-hidden">
         <div className="absolute inset-0 opacity-10"
-          style={{ backgroundImage: `url('/backgrounds/rice-field-hero.webp')`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+          style={{ backgroundImage: `url('${images['about-hero']}')`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
         <div className="relative max-w-[1440px] mx-auto">
           <span className="section-label text-secondary-gold mb-4 block">{t('about.badge')}</span>
           <h1 className="font-grotesk font-bold text-4xl md:text-6xl text-white mb-6">{t('about.title')}</h1>
@@ -63,10 +66,10 @@ export default function AboutPage() {
 
           <ScrollReveal delay={150}>
             <div className="relative">
-              <img
-                src="/backgrounds/industrial-story.webp"
+              <StorySlideshow
+                images={aboutStoryPhotos}
+                className="w-full aspect-[4/3]"
                 alt="Krishi Vikas Udyog manufacturing"
-                className="w-full aspect-[4/3] object-cover"
               />
               <div className="absolute -bottom-6 -right-6 bg-secondary-gold p-8 shadow-xl hidden md:block">
                 <div className="font-grotesk font-black text-5xl text-primary">40+</div>

@@ -2,11 +2,15 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import ScrollReveal from '../components/ScrollReveal'
 import { products } from '../data/products'
+import { useSiteImages } from '../hooks/useSiteImages'
+import StorySlideshow from '../components/StorySlideshow'
+import GalleryAndReviews from '../components/GalleryAndReviews'
 
 const featured = products.slice(0, 3)
 
 export default function HomePage() {
   const { t } = useTranslation()
+  const { images, homeStoryPhotos } = useSiteImages()
 
   const stats = [
     { value: '40+', label: t('home.stats.years') },
@@ -33,7 +37,7 @@ export default function HomePage() {
           <div
             className="w-full h-full opacity-30"
             style={{
-              backgroundImage: `url('/backgrounds/factory-hero.webp')`,
+              backgroundImage: `url('${images['home-hero']}')`,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
             }}
@@ -99,11 +103,11 @@ export default function HomePage() {
           </ScrollReveal>
 
           <ScrollReveal delay={150} className="relative">
-            <div className="aspect-square bg-surface-container p-6 overflow-hidden">
-              <img
-                src="/backgrounds/industrial-story.webp"
-                alt="Industrial machinery precision engineering"
-                className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-700"
+            <div className="aspect-square bg-surface-container overflow-hidden">
+              <StorySlideshow
+                images={homeStoryPhotos}
+                className="w-full h-full aspect-square"
+                alt="Krishi Vikas Udyog story"
               />
             </div>
             <div className="absolute -bottom-8 -left-8 bg-primary border-4 border-secondary-gold p-8 hidden lg:block shadow-2xl ring-8 ring-white">
@@ -219,7 +223,7 @@ export default function HomePage() {
                 icon: 'grain',
                 count: t('home.categories.riceMill.count'),
                 to: '/products?cat=rice-mill',
-                img: 'https://images.unsplash.com/photo-1625246333195-78d9c38ad449?auto=format&fm=webp&w=800&q=80',
+                img: images['home-cat-rice'],
                 cta: t('home.categories.riceMill.cta'),
               },
               {
@@ -228,7 +232,7 @@ export default function HomePage() {
                 icon: 'agriculture',
                 count: t('home.categories.poultry.count'),
                 to: '/products?cat=poultry-feed',
-                img: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fm=webp&w=800&q=80',
+                img: images['home-cat-poultry'],
                 cta: t('home.categories.poultry.cta'),
               },
               {
@@ -237,7 +241,7 @@ export default function HomePage() {
                 icon: 'settings_input_component',
                 count: t('home.categories.attaChakki.count'),
                 to: '/products?cat=atta-chakki',
-                img: '/products/mobile-chakki-oil.webp',
+                img: images['home-cat-chakki'],
                 cta: t('home.categories.attaChakki.cta'),
               },
             ].map((cat, i) => (
@@ -264,13 +268,16 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* ── Media Gallery & Reviews ───────────────────────────── */}
+      <GalleryAndReviews />
+
       {/* ── CTA Section ───────────────────────────────────────── */}
       <section className="relative py-section overflow-hidden">
         <div className="absolute inset-0 z-0">
           <div
             className="w-full h-full"
             style={{
-              backgroundImage: `url('https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?auto=format&fm=webp&w=1920&q=80')`,
+              backgroundImage: `url('${images['home-cta']}')`,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
               filter: 'brightness(0.2)',
