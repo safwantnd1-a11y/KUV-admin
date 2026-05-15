@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Package, PlusSquare, LogOut, Menu, X, Image } from 'lucide-react';
+import { LayoutDashboard, Package, LogOut, Menu, X, Image } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 export default function AdminLayout() {
@@ -16,7 +16,6 @@ export default function AdminLayout() {
   const navItems = [
     { name: 'Dashboard',    path: '/admin',               icon: <LayoutDashboard size={20} /> },
     { name: 'Products',     path: '/admin/products',       icon: <Package size={20} /> },
-    { name: 'Add Product',  path: '/admin/products/add',   icon: <PlusSquare size={20} /> },
     { name: 'Site Images',  path: '/admin/site-images',    icon: <Image size={20} /> },
   ];
 
