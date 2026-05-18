@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import ScrollReveal from '../components/ScrollReveal'
@@ -5,12 +6,26 @@ import { products } from '../data/products'
 import { useSiteImages } from '../hooks/useSiteImages'
 import StorySlideshow from '../components/StorySlideshow'
 import GalleryAndReviews from '../components/GalleryAndReviews'
+import AnimatedCounter from '../components/AnimatedCounter'
+import ProgressRing from '../components/ProgressRing'
+import { Calendar, Users, Award, ShieldCheck } from 'lucide-react'
 
 const featured = products.slice(0, 3)
 
 export default function HomePage() {
   const { t } = useTranslation()
-  const { images, homeStoryPhotos } = useSiteImages()
+  const { images, homeStoryPhotos, heroGallery } = useSiteImages()
+  const [activeSlide, setActiveSlide] = useState(0)
+
+  useEffect(() => {
+    if (heroGallery.length <= 1) return
+
+    const interval = setInterval(() => {
+      setActiveSlide(prev => (prev + 1) % heroGallery.length)
+    }, 5000)
+
+    return () => clearInterval(interval)
+  }, [heroGallery.length])
 
   const stats = [
     { value: '40+', label: t('home.stats.years') },
@@ -32,33 +47,86 @@ export default function HomePage() {
     <main>
       {/* ── Hero ──────────────────────────────────────────────── */}
       <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-primary">
-        {/* Background overlay pattern */}
+        {/* Hero Background Slideshow */}
         <div className="absolute inset-0 z-0">
-          <div
-            className="w-full h-full opacity-30"
-            style={{
-              backgroundImage: `url('${images['home-hero']}')`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-            }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-primary/70 via-primary/50 to-primary/90" />
+          {heroGallery.length > 0 ? (
+            heroGallery.map((media, index) => (
+              <div
+                key={media.id}
+                className={`absolute inset-0 transition-opacity duration-1000 ${
+                  index === activeSlide ? 'opacity-100 z-10' : 'opacity-0 z-0'
+                }`}
+              >
+                {media.type === 'video' ? (
+                  <video
+                    src={media.url}
+                    className="w-full h-full object-cover"
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                  />
+                ) : (
+                  <div
+                    className="w-full h-full bg-cover bg-center"
+                    style={{ backgroundImage: `url('${media.url}')` }}
+                  />
+                )}
+              </div>
+            ))
+          ) : (
+            <div
+              className="w-full h-full opacity-30"
+              style={{
+                backgroundImage: `url('${images['home-hero']}')`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+              }}
+            />
+          )}
+          <div className="absolute inset-0 z-20 bg-gradient-to-b from-primary/70 via-primary/50 to-primary/90" />
         </div>
+
+        {/* Slideshow indicators */}
+        {heroGallery.length > 1 && (
+          <div className="absolute top-1/2 right-6 z-30 flex flex-col gap-2">
+            {heroGallery.map((_, index) => (
+              <button
+                key={index}
+                onClick={() => setActiveSlide(index)}
+                className={`w-2 h-8 rounded-full transition-all duration-300 ${
+                  index === activeSlide
+                    ? 'bg-secondary-gold scale-125'
+                    : 'bg-white/30 hover:bg-white/50'
+                }`}
+                aria-label={`Go to slide ${index + 1}`}
+              />
+            ))}
+          </div>
+        )}
 
         {/* Hero Content */}
         <div className="relative z-10 text-center px-6 max-w-5xl mx-auto">
           <div className="font-grotesk text-label text-secondary-gold tracking-[0.35em] uppercase mb-6 animate-fade-in">
             {t('home.hero.badge')}
           </div>
-          <h1 className="font-grotesk font-bold text-4xl md:text-6xl lg:text-display text-white leading-tight mb-8 animate-fade-in">
-            {t('home.hero.title')}{' '}
-            <span className="text-secondary-gold">{t('home.hero.titleHighlight')}</span>{' '}
-            {t('home.hero.titleEnd')}
+          <h1 className="font-grotesk font-bold text-4xl md:text-6xl lg:text-display leading-tight mb-8">
+            <span className="inline-block text-white animate-word-reveal" style={{ animationDelay: '0.1s' }}>
+              {t('home.hero.title')}
+            </span>
+            {' '}
+            <span className="inline-block animate-shimmer animate-pulse-glow" style={{ animationDelay: '0.4s' }}>
+              {t('home.hero.titleHighlight')}
+            </span>
+            {' '}
+            <span className="inline-block text-white animate-word-reveal" style={{ animationDelay: '0.7s' }}>
+              {t('home.hero.titleEnd')}
+            </span>
           </h1>
-          <p className="font-manrope text-lg md:text-body-lg text-white/75 mb-12 max-w-2xl mx-auto animate-fade-in">
+          <p className="font-manrope text-lg md:text-body-lg text-white/75 mb-12 max-w-2xl mx-auto animate-fade-in" style={{ animationDelay: '1s' }}>
             {t('home.hero.subtitle')}
           </p>
-          <div className="flex flex-col sm:flex-row justify-center gap-5 animate-fade-in">
+          <div className="flex flex-col sm:flex-row justify-center gap-5 animate-fade-in" style={{ animationDelay: '1.3s' }}>
             <Link to="/products" className="btn-primary">
               {t('home.hero.cta1')}
             </Link>
@@ -68,21 +136,56 @@ export default function HomePage() {
           </div>
         </div>
 
+        {/* Stats inside Hero */}
+        <div className="absolute bottom-0 left-0 right-0 z-10 py-12">
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent" />
+          <div className="max-w-[1440px] mx-auto px-8 md:px-16 relative z-10">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-4">
+              {stats.map((s, i) => {
+                const icons = [
+                  <Calendar key="cal" className="w-5 h-5 md:w-7 md:h-7 text-secondary-gold/60" />,
+                  <Users key="users" className="w-5 h-5 md:w-7 md:h-7 text-secondary-gold/60" />,
+                  <Award key="award" className="w-5 h-5 md:w-7 md:h-7 text-secondary-gold/60" />,
+                  <ShieldCheck key="shield" className="w-5 h-5 md:w-7 md:h-7 text-secondary-gold/60" />,
+                ]
+
+                return (
+                  <div key={s.label} className="text-center animate-fade-in-up" style={{ animationDelay: `${1.5 + i * 0.15}s` }}>
+                    <div className="flex flex-col items-center">
+                      <div className="mb-2">{icons[i]}</div>
+                      {s.value === '99%' ? (
+                        <ProgressRing
+                          percentage={99}
+                          size={80}
+                          strokeWidth={5}
+                          duration={2000}
+                          delay={1500 + i * 200}
+                          color="#fbbf24"
+                          bgColor="rgba(255, 255, 255, 0)"
+                        >
+                          <span className="font-grotesk font-bold text-2xl md:text-3xl text-secondary-gold">
+                            <AnimatedCounter value={s.value} duration={2000} delay={1500 + i * 200} />
+                          </span>
+                        </ProgressRing>
+                      ) : (
+                        <div className="font-grotesk font-bold text-3xl md:text-4xl text-secondary-gold">
+                          <AnimatedCounter value={s.value} duration={2000} delay={1500 + i * 200} />
+                        </div>
+                      )}
+                      <div className="font-grotesk text-[10px] md:text-xs uppercase tracking-widest text-white/60 mt-2">
+                        {s.label}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+
         {/* Scroll indicator */}
         <div className="absolute bottom-10 left-1/2 -translate-x-1/2 animate-bounce-slow">
           <span className="material-symbols-outlined text-white/50 text-4xl">keyboard_arrow_down</span>
-        </div>
-      </section>
-
-      {/* ── Stats Bar ─────────────────────────────────────────── */}
-      <section className="bg-primary-light py-12">
-        <div className="max-w-[1440px] mx-auto px-8 md:px-16 grid grid-cols-2 md:grid-cols-4 gap-8">
-          {stats.map((s, i) => (
-            <ScrollReveal key={s.label} delay={i * 100} className="text-center">
-              <div className="font-grotesk font-bold text-4xl md:text-5xl text-secondary-gold mb-2">{s.value}</div>
-              <div className="font-grotesk text-label uppercase tracking-widest text-white/60">{s.label}</div>
-            </ScrollReveal>
-          ))}
         </div>
       </section>
 

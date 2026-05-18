@@ -23,7 +23,7 @@ export default function StorySlideshow({ images, interval = 4000, className = ''
 
   return (
     <div className={`relative overflow-hidden ${className}`}>
-      <AnimatePresence mode="crossfade">
+      <AnimatePresence>
         <motion.img
           key={images[current]}
           src={images[current]}

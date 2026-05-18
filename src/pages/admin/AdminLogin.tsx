@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { motion } from 'framer-motion';
 
 export default function AdminLogin() {
   const [email, setEmail] = useState('');
@@ -30,14 +29,10 @@ export default function AdminLogin() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 p-4">
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-xl overflow-hidden border border-gray-100 dark:border-gray-800"
-      >
+      <div className="animate-scale-in w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-xl overflow-hidden border border-gray-100 dark:border-gray-800">
         <div className="p-8">
           <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-green-600 dark:text-green-500">Krishi Admin</h2>
+            <h2 className="text-3xl font-bold text-green-600 dark:text-green-500">KVU Admin</h2>
             <p className="text-gray-500 dark:text-gray-400 mt-2">Sign in to manage your content</p>
           </div>
 
@@ -81,7 +76,7 @@ export default function AdminLogin() {
             </button>
           </form>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }

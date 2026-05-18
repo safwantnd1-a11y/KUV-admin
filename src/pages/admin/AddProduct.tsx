@@ -135,8 +135,9 @@ export default function AddProduct() {
       setMessage({ type: 'success', text: 'Product added successfully!' });
       setTitle(''); setCategory(''); setDescription(''); setBadge('');
       setFile(null); setPreview(null); setSpecs({});
-    } catch (error: any) {
-      setMessage({ type: 'error', text: error.message || 'An error occurred' });
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      setMessage({ type: 'error', text: errMsg });
     } finally {
       setLoading(false);
     }

@@ -1,10 +1,20 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import emailjs from '@emailjs/browser'
 import ScrollReveal from '../components/ScrollReveal'
+
+// EmailJS config from env (keys never hardcoded in source)
+const EJ_PUBLIC_KEY  = import.meta.env.VITE_EMAILJS_PUBLIC_KEY  || ''
+const EJ_SERVICE_ID  = import.meta.env.VITE_EMAILJS_SERVICE_ID  || ''
+const EJ_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || ''
 
 export default function ContactPage() {
   const { t } = useTranslation()
+  const formRef = useRef<HTMLFormElement>(null)
   const [form, setForm] = useState({ name: '', email: '', phone: '', message: '', product: '' })
+  const [submitted, setSubmitted] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const contactDetails = [
     { icon: 'location_on', label: t('contact.address'), value: 'Mubarakpur, Ambedkar Nagar,\nTanda – 224190,\nUttar Pradesh, India' },
@@ -13,15 +23,40 @@ export default function ContactPage() {
     { icon: 'schedule', label: t('contact.hours'), value: t('contact.hoursVal') },
     { icon: 'verified', label: 'GST Number', value: '09AADFK7950N1ZP' },
   ]
-  const [submitted, setSubmitted] = useState(false)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setForm(f => ({ ...f, [e.target.name]: e.target.value }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setSubmitted(true)
+    setLoading(true)
+    setError('')
+
+    // Generate unique inquiry number
+    const inquiryNo = `KVU-${Date.now().toString().slice(-6)}`
+
+    // Add inquiry_no as a hidden field value for EmailJS
+    if (formRef.current) {
+      const hidden = formRef.current.querySelector('input[name="inquiry_no"]') as HTMLInputElement
+      if (hidden) hidden.value = inquiryNo
+    }
+
+    try {
+      await emailjs.sendForm(
+        EJ_SERVICE_ID,
+        EJ_TEMPLATE_ID,
+        formRef.current!,
+        { publicKey: EJ_PUBLIC_KEY }
+      )
+      setSubmitted(true)
+      setForm({ name: '', email: '', phone: '', message: '', product: '' })
+    } catch (err: unknown) {
+      const errorText = (err as { text?: string })?.text
+      setError(errorText || 'Failed to send message. Please try calling us directly.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -89,8 +124,15 @@ export default function ContactPage() {
                   </button>
                 </div>
               ) : (
-                <form onSubmit={handleSubmit} className="space-y-6">
+                <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
                   <h2 className="font-grotesk font-semibold text-h2 text-primary mb-8">{t('contact.form.title')}</h2>
+
+                  {error && (
+                    <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg flex items-start gap-2">
+                      <span className="material-symbols-outlined text-base mt-0.5">error</span>
+                      {error}
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
@@ -109,6 +151,9 @@ export default function ContactPage() {
                     <label className="font-grotesk text-label uppercase tracking-widest text-outline block mb-2">{t('contact.form.email')}</label>
                     <input name="email" value={form.email} onChange={handleChange} placeholder={t('contact.form.emailPH')} type="email"
                       className="w-full border-b-2 border-outline-variant bg-transparent py-3 font-manrope text-body focus:outline-none focus:border-primary transition-colors placeholder:text-outline" />
+                    {/* Hidden fields for EmailJS template variables */}
+                    <input type="hidden" name="reply_to" value={form.email} readOnly />
+                    <input type="hidden" name="inquiry_no" defaultValue="" />
                   </div>
 
                   <div>
@@ -129,9 +174,10 @@ export default function ContactPage() {
                       className="w-full border-b-2 border-outline-variant bg-transparent py-3 font-manrope text-body focus:outline-none focus:border-primary transition-colors placeholder:text-outline resize-none" />
                   </div>
 
-                  <button type="submit"
-                    className="btn-primary w-full text-center">
-                    {t('contact.form.submit')}
+                  <button type="submit" disabled={loading}
+                    className="btn-primary w-full text-center flex items-center justify-center gap-2 disabled:opacity-70">
+                    {loading && <span className="material-symbols-outlined animate-spin text-base">progress_activity</span>}
+                    {loading ? 'Sending...' : t('contact.form.submit')}
                   </button>
                   <p className="font-manrope text-xs text-outline text-center">
                     {t('contact.form.immediate')} <a href="tel:+91 9415139837,+91 9415139838" className="text-primary hover:underline">+91 9415139837,+91 9415139838</a>

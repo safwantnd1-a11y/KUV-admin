@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Package, LogOut, Menu, X, Image } from 'lucide-react';
+import { LayoutDashboard, Package, LogOut, Menu, X, Image, Star, Megaphone } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 export default function AdminLayout() {
@@ -14,15 +14,17 @@ export default function AdminLayout() {
   };
 
   const navItems = [
-    { name: 'Dashboard',    path: '/admin',               icon: <LayoutDashboard size={20} /> },
-    { name: 'Products',     path: '/admin/products',       icon: <Package size={20} /> },
-    { name: 'Site Images',  path: '/admin/site-images',    icon: <Image size={20} /> },
+    { name: 'Dashboard',       path: '/admin',                icon: <LayoutDashboard size={20} /> },
+    { name: 'Products',        path: '/admin/products',        icon: <Package size={20} /> },
+    { name: 'Site Images',     path: '/admin/site-images',    icon: <Image size={20} /> },
+    { name: 'Media & Reviews', path: '/admin/media-reviews',  icon: <Star size={20} /> },
+    { name: 'Popups & Banners',path: '/admin/popups',         icon: <Megaphone size={20} /> },
   ];
 
-  const SidebarContent = () => (
+  const renderSidebarContent = () => (
     <div className="flex flex-col h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800">
       <div className="p-6">
-        <h2 className="text-2xl font-bold text-green-600 dark:text-green-500">Krishi Admin</h2>
+        <h2 className="text-2xl font-bold text-green-600 dark:text-green-500">KVU Admin</h2>
       </div>
       
       <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
@@ -73,14 +75,14 @@ export default function AdminLayout() {
         fixed inset-y-0 left-0 z-50 w-64 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:block
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
-        <SidebarContent />
+        {renderSidebarContent()}
       </aside>
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Mobile Header */}
         <header className="lg:hidden flex items-center justify-between p-4 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-          <h2 className="text-xl font-bold text-green-600 dark:text-green-500">Krishi Admin</h2>
+          <h2 className="text-xl font-bold text-green-600 dark:text-green-500">KVU Admin</h2>
           <button 
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
             className="p-2 rounded-md text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"

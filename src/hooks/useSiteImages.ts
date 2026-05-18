@@ -3,6 +3,13 @@ import { supabase } from '../lib/supabase'
 
 export type SiteImages = Record<string, string>
 
+export interface HeroMedia {
+  id: number
+  url: string
+  type: 'image' | 'video' | 'gif'
+  display_order: number
+}
+
 // Fallback defaults
 const DEFAULTS: SiteImages = {
   'home-hero':        '/backgrounds/factory-hero.webp',
@@ -19,6 +26,7 @@ export function useSiteImages() {
   const [images, setImages] = useState<SiteImages>(DEFAULTS)
   const [homeStoryPhotos, setHomeStoryPhotos] = useState<string[]>([DEFAULTS['home-story']])
   const [aboutStoryPhotos, setAboutStoryPhotos] = useState<string[]>([DEFAULTS['about-story']])
+  const [heroGallery, setHeroGallery] = useState<HeroMedia[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -51,6 +59,15 @@ export function useSiteImages() {
         if (aboutPhotos && aboutPhotos.length > 0) {
           setAboutStoryPhotos(aboutPhotos.map((r: { url: string }) => r.url))
         }
+
+        // Fetch hero gallery (images, videos, GIFs)
+        const { data: heroData } = await supabase
+          .from('hero_gallery')
+          .select('*')
+          .order('display_order', { ascending: true })
+        if (heroData && heroData.length > 0) {
+          setHeroGallery(heroData)
+        }
       } catch {
         // Supabase not configured yet — use defaults
       } finally {
@@ -60,5 +77,5 @@ export function useSiteImages() {
     fetchAll()
   }, [])
 
-  return { images, homeStoryPhotos, aboutStoryPhotos, loading }
+  return { images, homeStoryPhotos, aboutStoryPhotos, heroGallery, loading }
 }

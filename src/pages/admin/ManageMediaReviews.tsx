@@ -1,0 +1,613 @@
+import { useState, useEffect, useRef } from 'react';
+import { supabase } from '../../lib/supabase';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Plus, Trash2, Loader2, Image, MessageSquare, Star, Upload, X, RefreshCw, MapPin, ChevronDown, ChevronUp, Link as LinkIcon, Play } from 'lucide-react';
+import { parseEmbedUrl, type EmbedPlatform } from '../../lib/embedUtils';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface MediaItem {
+  id: string;
+  type: 'image' | 'video' | 'embed';
+  url: string;
+  embed_url?: string;
+  platform?: EmbedPlatform;
+  caption?: string;
+  display_order: number;
+}
+
+interface Review {
+  id: string;
+  name: string;
+  role: string;
+  content: string;
+  rating: number;
+  display_order: number;
+}
+
+interface GoogleReview {
+  name: string;
+  role: string;
+  content: string;
+  rating: number;
+  display_order: number;
+}
+
+// ─── Helper ───────────────────────────────────────────────────────────────────
+
+const StarRating = ({ value, onChange }: { value: number; onChange: (v: number) => void }) => (
+  <div className="flex gap-1">
+    {[1, 2, 3, 4, 5].map((s) => (
+      <button key={s} type="button" onClick={() => onChange(s)}>
+        <Star size={22} className={s <= value ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300 dark:text-gray-600'} />
+      </button>
+    ))}
+  </div>
+);
+
+// ─── Media Section ─────────────────────────────────────────────────────────────
+
+function MediaSection() {
+  const [items, setItems] = useState<MediaItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [msg, setMsg] = useState({ type: '', text: '' });
+  const [type, setType] = useState<'image' | 'video' | 'embed'>('image');
+  const [caption, setCaption] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [embedUrl, setEmbedUrl] = useState('');
+  const [embedPreview, setEmbedPreview] = useState<{ platform: EmbedPlatform; thumbnail?: string } | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const fetchItems = async () => {
+    setLoading(true);
+    const { data } = await supabase.from('media_items').select('*').order('display_order');
+    setItems(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      fetchItems();
+    });
+  }, []);
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setFile(f);
+    setPreview(URL.createObjectURL(f));
+  };
+
+  const handleEmbedUrlChange = (val: string) => {
+    setEmbedUrl(val);
+    const parsed = parseEmbedUrl(val);
+    if (parsed) {
+      setEmbedPreview({ platform: parsed.platform, thumbnail: parsed.thumbnailUrl });
+    } else {
+      setEmbedPreview(null);
+    }
+  };
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMsg({ type: '', text: '' });
+
+    if (type === 'embed') {
+      if (!embedUrl) { setMsg({ type: 'error', text: 'Please enter a URL.' }); return; }
+      const parsed = parseEmbedUrl(embedUrl);
+      if (!parsed) { setMsg({ type: 'error', text: 'Invalid URL. Supported: YouTube, X (Twitter), Instagram.' }); return; }
+
+      setUploading(true);
+      try {
+        const nextOrder = items.length > 0 ? Math.max(...items.map(i => i.display_order)) + 1 : 1;
+        const { error } = await supabase.from('media_items').insert([{
+          type: 'embed',
+          url: parsed.thumbnailUrl || embedUrl,
+          embed_url: parsed.embedUrl,
+          platform: parsed.platform,
+          caption,
+          display_order: nextOrder,
+        }]);
+        if (error) throw error;
+        setMsg({ type: 'success', text: 'Embed added!' });
+        setEmbedUrl(''); setEmbedPreview(null); setCaption('');
+        fetchItems();
+      } catch (err: unknown) {
+        const msg = err && typeof err === 'object' && 'message' in err ? (err as { message: string }).message : JSON.stringify(err)
+        setMsg({ type: 'error', text: msg });
+      } finally {
+        setUploading(false);
+      }
+      return;
+    }
+
+    if (!file) { setMsg({ type: 'error', text: 'Please select a file.' }); return; }
+    setUploading(true);
+    setMsg({ type: '', text: '' });
+
+    try {
+      const ext = file.name.split('.').pop();
+      const path = `gallery/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('images').upload(path, file);
+      if (upErr) throw upErr;
+
+      const { data: urlData } = supabase.storage.from('images').getPublicUrl(path);
+      const url = urlData.publicUrl;
+
+      const nextOrder = items.length > 0 ? Math.max(...items.map(i => i.display_order)) + 1 : 1;
+      const { error: dbErr } = await supabase.from('media_items').insert([{ type, url, caption, display_order: nextOrder }]);
+      if (dbErr) throw dbErr;
+
+      setMsg({ type: 'success', text: 'Media added!' });
+      setFile(null); setPreview(null); setCaption(''); setType('image');
+      if (fileRef.current) fileRef.current.value = '';
+      fetchItems();
+    } catch (err: unknown) {
+      const errorMessage = err && typeof err === 'object' && 'message' in err ? (err as { message: string }).message : JSON.stringify(err);
+      setMsg({ type: 'error', text: errorMessage });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDelete = async (item: MediaItem) => {
+    if (!confirm('Delete this media item?')) return;
+    try {
+      if (item.type !== 'embed' && item.url.includes('/images/')) {
+        const path = item.url.split('/images/')[1];
+        if (path) {
+          await supabase.storage.from('images').remove([path]);
+        }
+      }
+      const { error } = await supabase.from('media_items').delete().eq('id', item.id);
+      if (error) throw error;
+      fetchItems();
+    } catch (err: unknown) {
+      alert(err && typeof err === 'object' && 'message' in err ? (err as { message: string }).message : JSON.stringify(err));
+    }
+  };
+
+  return (
+    <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-6">
+      <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+        <Image size={20} className="text-green-500" /> Media Gallery
+      </h2>
+
+      <form onSubmit={handleAdd} className="border border-dashed border-gray-300 dark:border-gray-700 rounded-xl p-5 mb-6 space-y-4">
+        <p className="text-sm font-semibold text-gray-600 dark:text-gray-400">Add New Media</p>
+
+        {msg.text && (
+          <div className={`text-sm p-3 rounded-lg ${msg.type === 'success' ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400' : 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400'}`}>
+            {msg.text}
+          </div>
+        )}
+
+        <div className="flex gap-3">
+          {(['image', 'video', 'embed'] as const).map(t => (
+            <button key={t} type="button" onClick={() => setType(t)}
+              className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-all ${type === t ? 'bg-green-600 text-white border-green-600' : 'border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-green-400'}`}>
+              {t === 'image' ? '🖼️ Image' : t === 'video' ? '▶️ Video' : '🔗 Embed Link'}
+            </button>
+          ))}
+        </div>
+
+        {type === 'embed' ? (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Paste URL</label>
+            <div className="relative">
+              <LinkIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input type="url" value={embedUrl} onChange={e => handleEmbedUrlChange(e.target.value)}
+                placeholder="https://youtube.com/watch?v=... or https://x.com/.../status/... or https://instagram.com/p/..."
+                className="w-full pl-10 pr-4 py-2.5 rounded-lg text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-green-500 outline-none dark:text-white" />
+            </div>
+            {embedPreview && (
+              <div className="mt-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg flex items-center gap-3">
+                <span className="text-lg">{embedPreview.platform === 'youtube' ? '▶️' : embedPreview.platform === 'x' ? '🐦' : '📸'}</span>
+                <div>
+                  <p className="text-sm font-semibold text-green-700 dark:text-green-400 capitalize">{embedPreview.platform} link detected</p>
+                  <p className="text-xs text-green-600/70 dark:text-green-500/70">Will embed and play live on the website</p>
+                </div>
+              </div>
+            )}
+            {embedUrl && !embedPreview && (
+              <p className="mt-2 text-xs text-red-500">Unsupported URL. Use YouTube, X (Twitter), or Instagram links.</p>
+            )}
+          </div>
+        ) : (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Upload File</label>
+            {preview ? (
+              <div className="relative w-32 h-32">
+                <img src={preview} alt="preview" className="w-full h-full object-cover rounded-lg" />
+                <button type="button" onClick={() => { setFile(null); setPreview(null); if (fileRef.current) fileRef.current.value = ''; }}
+                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600">
+                  <X size={12} />
+                </button>
+              </div>
+            ) : (
+              <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl cursor-pointer hover:border-green-400 transition-colors bg-gray-50 dark:bg-gray-800">
+                <Upload size={20} className="text-gray-400 mb-1" />
+                <span className="text-xs text-gray-500">Click to upload</span>
+                <input ref={fileRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFile} />
+              </label>
+            )}
+          </div>
+        )}
+
+        <input type="text" value={caption} onChange={e => setCaption(e.target.value)}
+          placeholder="Caption (optional)"
+          className="w-full px-4 py-2 rounded-lg text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-green-500 outline-none dark:text-white" />
+
+        <button type="submit" disabled={uploading}
+          className="w-full flex items-center justify-center gap-2 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold disabled:opacity-60 transition-colors">
+          {uploading ? <><Loader2 size={16} className="animate-spin" /> Uploading...</> : <><Plus size={16} /> Add Media</>}
+        </button>
+      </form>
+
+      {loading ? (
+        <div className="flex justify-center py-8"><Loader2 className="animate-spin text-green-500" size={28} /></div>
+      ) : items.length === 0 ? (
+        <p className="text-center text-gray-400 py-8 text-sm">No media items yet.</p>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          {items.map(item => (
+            <div key={item.id} className="relative group rounded-xl overflow-hidden aspect-square bg-gray-100 dark:bg-gray-800">
+              {item.type === 'embed' ? (
+                <div className="w-full h-full flex flex-col items-center justify-center bg-gray-900">
+                  {item.platform === 'youtube' && item.url ? (
+                    <img src={item.url} alt={item.caption || ''} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="text-4xl">{item.platform === 'x' ? '🐦' : item.platform === 'instagram' ? '📸' : '▶️'}</div>
+                  )}
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                    <div className="w-10 h-10 bg-white/90 rounded-full flex items-center justify-center">
+                      <Play size={16} className="text-gray-900 ml-0.5" />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <img src={item.url} alt={item.caption || ''} className="w-full h-full object-cover" />
+              )}
+              {item.type === 'video' && (
+                <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                  <div className="w-8 h-8 bg-white/80 rounded-full flex items-center justify-center pl-0.5">▶</div>
+                </div>
+              )}
+              {item.type === 'embed' && (
+                <div className="absolute top-2 left-2 bg-black/70 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
+                  {item.platform}
+                </div>
+              )}
+              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
+                {item.caption && <p className="text-white text-xs px-2 text-center">{item.caption}</p>}
+                <button onClick={() => handleDelete(item)}
+                  className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-full transition-colors">
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Google Import Panel ───────────────────────────────────────────────────────
+
+function GoogleImportPanel({ onImported }: { onImported: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [placeId, setPlaceId] = useState('');
+  const [fetching, setFetching] = useState(false);
+  const [preview, setPreview] = useState<GoogleReview[] | null>(null);
+  const [placeName, setPlaceName] = useState('');
+  const [overallRating, setOverallRating] = useState<number | null>(null);
+  const [totalRatings, setTotalRatings] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState({ type: '', text: '' });
+
+  const handleFetch = async () => {
+    if (!placeId.trim()) { setMsg({ type: 'error', text: 'Please enter a Place ID.' }); return; }
+    setFetching(true);
+    setMsg({ type: '', text: '' });
+    setPreview(null);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('fetch-google-reviews', {
+        body: { placeId: placeId.trim() },
+      });
+
+      if (error) throw error;
+      if (data.error) throw new Error(data.error + (data.detail ? `: ${data.detail}` : ''));
+
+      setPreview(data.reviews);
+      setPlaceName(data.place_name || '');
+      setOverallRating(data.overall_rating || null);
+      setTotalRatings(data.total_ratings || null);
+    } catch (err: unknown) {
+      const errorMessage = err && typeof err === 'object' && 'message' in err ? (err as { message: string }).message : JSON.stringify(err);
+      setMsg({ type: 'error', text: errorMessage });
+    } finally {
+      setFetching(false);
+    }
+  };
+
+  const handleSaveAll = async () => {
+    if (!preview || preview.length === 0) return;
+    setSaving(true);
+    setMsg({ type: '', text: '' });
+
+    try {
+      // Get current max display_order
+      const { data: existing } = await supabase.from('reviews').select('display_order').order('display_order', { ascending: false }).limit(1);
+      const startOrder = (existing?.[0]?.display_order || 0) + 1;
+
+      const toInsert = preview.map((r, i) => ({ ...r, display_order: startOrder + i }));
+      const { error } = await supabase.from('reviews').insert(toInsert);
+      if (error) throw error;
+
+      setMsg({ type: 'success', text: `${preview.length} Google reviews imported successfully!` });
+      setPreview(null);
+      setPlaceId('');
+      onImported();
+    } catch (err: unknown) {
+      const errorMessage = err && typeof err === 'object' && 'message' in err ? (err as { message: string }).message : JSON.stringify(err);
+      setMsg({ type: 'error', text: errorMessage });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="border border-blue-200 dark:border-blue-800 rounded-xl overflow-hidden mb-6">
+      {/* Header Toggle */}
+      <button type="button" onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-5 py-4 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-white dark:bg-blue-900 flex items-center justify-center shadow-sm">
+            <span className="text-base">🌐</span>
+          </div>
+          <div className="text-left">
+            <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">Import from Google Reviews</p>
+            <p className="text-xs text-blue-500 dark:text-blue-400">Fetch real customer reviews from your Google Business listing</p>
+          </div>
+        </div>
+        {open ? <ChevronUp size={18} className="text-blue-500" /> : <ChevronDown size={18} className="text-blue-500" />}
+      </button>
+
+      {/* Expandable Body */}
+      <AnimatePresence>
+        {open && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }} className="overflow-hidden">
+            <div className="p-5 space-y-4 bg-white dark:bg-gray-900">
+
+              {msg.text && (
+                <div className={`text-sm p-3 rounded-lg ${msg.type === 'success' ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400' : 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400'}`}>
+                  {msg.text}
+                </div>
+              )}
+
+              {/* Place ID input */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <MapPin size={13} className="inline mr-1" />Google Place ID
+                </label>
+                <div className="flex gap-2">
+                  <input type="text" value={placeId} onChange={e => setPlaceId(e.target.value)}
+                    placeholder="e.g. ChIJN1t_tDeuEmsRUsoyG83frY4"
+                    className="flex-1 px-4 py-2.5 rounded-lg text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-blue-500 outline-none dark:text-white" />
+                  <button type="button" onClick={handleFetch} disabled={fetching || !placeId.trim()}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold disabled:opacity-60 transition-colors whitespace-nowrap">
+                    {fetching ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+                    {fetching ? 'Fetching...' : 'Fetch'}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-400 mt-1.5">
+                  Find your Place ID at{' '}
+                  <a href="https://developers.google.com/maps/documentation/javascript/examples/places-placeid-finder" target="_blank" rel="noopener noreferrer"
+                    className="text-blue-500 hover:underline">developers.google.com/maps → Place ID Finder</a>
+                </p>
+              </div>
+
+              {/* Preview fetched reviews */}
+              {preview && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
+                  {/* Place info */}
+                  {placeName && (
+                    <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                      <span className="text-lg">📍</span>
+                      <div>
+                        <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">{placeName}</p>
+                        <p className="text-xs text-blue-500">
+                          ⭐ {overallRating} overall · {totalRatings?.toLocaleString()} total ratings · {preview.length} reviews fetched
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {preview.length === 0 ? (
+                    <p className="text-sm text-gray-500 text-center py-4">No reviews found for this Place ID.</p>
+                  ) : (
+                    <>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Preview ({preview.length} reviews)</p>
+                      {preview.map((r, i) => (
+                        <div key={i} className="border border-gray-100 dark:border-gray-800 rounded-xl p-3 flex gap-3">
+                          <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-700 text-sm font-bold shrink-0">
+                            {r.name.charAt(0)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1 mb-0.5">
+                              {[...Array(5)].map((_, j) => (
+                                <Star key={j} size={11} className={j < r.rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-200'} />
+                              ))}
+                            </div>
+                            <p className="text-xs font-semibold text-gray-800 dark:text-white">{r.name}</p>
+                            <p className="text-xs text-gray-500 mt-1 line-clamp-2">{r.content || '(No text)'}</p>
+                          </div>
+                        </div>
+                      ))}
+
+                      <button type="button" onClick={handleSaveAll} disabled={saving}
+                        className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold disabled:opacity-60 transition-colors">
+                        {saving ? <><Loader2 size={16} className="animate-spin" /> Saving...</> : <>✅ Save All {preview.length} Reviews to Database</>}
+                      </button>
+                    </>
+                  )}
+                </motion.div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ─── Reviews Section ───────────────────────────────────────────────────────────
+
+function ReviewsSection() {
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState({ type: '', text: '' });
+  const [form, setForm] = useState({ name: '', role: '', content: '', rating: 5 });
+
+  const fetchReviews = async () => {
+    setLoading(true);
+    const { data } = await supabase.from('reviews').select('*').order('display_order');
+    setReviews(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      fetchReviews();
+    });
+  }, []);
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name || !form.content) { setMsg({ type: 'error', text: 'Name and review content are required.' }); return; }
+    setSaving(true);
+    setMsg({ type: '', text: '' });
+
+    const nextOrder = reviews.length > 0 ? Math.max(...reviews.map(r => r.display_order)) + 1 : 1;
+    const { error } = await supabase.from('reviews').insert([{ ...form, display_order: nextOrder }]);
+
+    if (error) { setMsg({ type: 'error', text: error.message }); }
+    else { setMsg({ type: 'success', text: 'Review added!' }); setForm({ name: '', role: '', content: '', rating: 5 }); fetchReviews(); }
+    setSaving(false);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this review?')) return;
+    try {
+      const { error } = await supabase.from('reviews').delete().eq('id', id);
+      if (error) throw error;
+      fetchReviews();
+    } catch (err: unknown) {
+      alert(err && typeof err === 'object' && 'message' in err ? (err as { message: string }).message : JSON.stringify(err));
+    }
+  };
+
+  return (
+    <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-6">
+      <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+        <MessageSquare size={20} className="text-green-500" /> Client Reviews
+      </h2>
+
+      {/* Google Import Panel */}
+      <GoogleImportPanel onImported={fetchReviews} />
+
+      {/* Manual Add Form */}
+      <form onSubmit={handleAdd} className="border border-dashed border-gray-300 dark:border-gray-700 rounded-xl p-5 mb-6 space-y-4">
+        <p className="text-sm font-semibold text-gray-600 dark:text-gray-400">Add Manually</p>
+
+        {msg.text && (
+          <div className={`text-sm p-3 rounded-lg ${msg.type === 'success' ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400' : 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400'}`}>
+            {msg.text}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <input type="text" required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+            placeholder="Client Name *"
+            className="w-full px-4 py-2.5 rounded-lg text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-green-500 outline-none dark:text-white" />
+          <input type="text" value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
+            placeholder="Role / Location (e.g. Rice Mill Owner, UP)"
+            className="w-full px-4 py-2.5 rounded-lg text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-green-500 outline-none dark:text-white" />
+        </div>
+
+        <textarea rows={3} required value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
+          placeholder="Review content *"
+          className="w-full px-4 py-2.5 rounded-lg text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-green-500 outline-none dark:text-white" />
+
+        <div>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Rating</p>
+          <StarRating value={form.rating} onChange={v => setForm(f => ({ ...f, rating: v }))} />
+        </div>
+
+        <button type="submit" disabled={saving}
+          className="w-full flex items-center justify-center gap-2 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold disabled:opacity-60 transition-colors">
+          {saving ? <><Loader2 size={16} className="animate-spin" /> Saving...</> : <><Plus size={16} /> Add Review</>}
+        </button>
+      </form>
+
+      {/* Reviews List */}
+      {loading ? (
+        <div className="flex justify-center py-8"><Loader2 className="animate-spin text-green-500" size={28} /></div>
+      ) : reviews.length === 0 ? (
+        <p className="text-center text-gray-400 py-8 text-sm">No reviews yet. Import from Google or add manually.</p>
+      ) : (
+        <AnimatePresence>
+          <div className="space-y-3">
+            {reviews.map(r => (
+              <motion.div key={r.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                className="border border-gray-100 dark:border-gray-800 rounded-xl p-4 flex gap-4 items-start">
+                <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-700 dark:text-green-400 font-bold shrink-0">
+                  {r.name.charAt(0)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1 mb-1">
+                    {[...Array(5)].map((_, i) => (
+                      <Star key={i} size={12} className={i < r.rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-200 dark:text-gray-700'} />
+                    ))}
+                  </div>
+                  <p className="text-sm text-gray-700 dark:text-gray-300 italic mb-1.5 line-clamp-2">"{r.content}"</p>
+                  <p className="text-xs font-semibold text-gray-900 dark:text-white">{r.name}</p>
+                  {r.role && <p className="text-xs text-gray-400">{r.role}</p>}
+                </div>
+                <button onClick={() => handleDelete(r.id)}
+                  className="text-red-400 hover:text-red-600 p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors shrink-0">
+                  <Trash2 size={16} />
+                </button>
+              </motion.div>
+            ))}
+          </div>
+        </AnimatePresence>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Page ─────────────────────────────────────────────────────────────────
+
+export default function ManageMediaReviews() {
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Media & Reviews</h1>
+        <p className="mt-2 text-gray-500 dark:text-gray-400 text-sm">
+          Manage the gallery images/videos and client testimonials shown on the homepage.
+        </p>
+      </div>
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+        <MediaSection />
+        <ReviewsSection />
+      </div>
+    </motion.div>
+  );
+}

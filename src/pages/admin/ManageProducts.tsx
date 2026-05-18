@@ -2,15 +2,18 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Trash2, Edit, Plus, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+
+interface Product {
+  id: number;
+  title: string;
+  description: string;
+  image_url: string;
+  category: string;
+}
 
 export default function ManageProducts() {
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchProducts();
-  }, []);
 
   const fetchProducts = async () => {
     try {
@@ -28,12 +31,20 @@ export default function ManageProducts() {
     }
   };
 
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      fetchProducts();
+    });
+  }, []);
+
+
   const handleDelete = async (id: number, imageUrl: string) => {
     if (!window.confirm('Are you sure you want to delete this product?')) return;
     
     try {
       // Delete from DB
-      await supabase.from('products').delete().eq('id', id);
+      const { error: dbError } = await supabase.from('products').delete().eq('id', id);
+      if (dbError) throw dbError;
 
       // If there's an image, try to delete it from Storage
       if (imageUrl) {
@@ -87,12 +98,9 @@ export default function ManageProducts() {
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {products.map((product, index) => (
-                  <motion.tr 
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    key={product.id} 
-                    className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors group"
+                  <tr
+                    key={product.id}
+                    className={`animate-fade-in-up stagger-${Math.min(index + 1, 6)} hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors group`}
                   >
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-4">
@@ -129,7 +137,7 @@ export default function ManageProducts() {
                         </button>
                       </div>
                     </td>
-                  </motion.tr>
+                  </tr>
                 ))}
               </tbody>
             </table>

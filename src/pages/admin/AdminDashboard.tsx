@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { Package, Users, TrendingUp } from 'lucide-react';
 
 export default function AdminDashboard() {
@@ -17,12 +16,9 @@ export default function AdminDashboard() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {stats.map((stat, index) => (
-          <motion.div
+          <div
             key={index}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1 }}
-            className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800"
+            className={`animate-fade-in-up stagger-${index + 1} bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800`}
           >
             <div className="flex items-center justify-between">
               <div>
@@ -33,7 +29,7 @@ export default function AdminDashboard() {
                 {stat.icon}
               </div>
             </div>
-          </motion.div>
+          </div>
         ))}
       </div>
       

@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
-import { Upload, CheckCircle, Loader2, Trash2 } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { Upload, CheckCircle, Loader2, Trash2, Play, Image, Film } from 'lucide-react'
 
 const IMAGE_SLOTS = [
   {
@@ -10,8 +9,8 @@ const IMAGE_SLOTS = [
     page: 'Home Page',
     size: '1920 × 1080 px',
     ratio: '16:9 Landscape',
-    tip: 'Full-screen background. Use a wide factory/machinery photo.',
-    type: 'single',
+    tip: 'Upload multiple images, videos (MP4), or GIFs. They will auto-rotate as a slideshow.',
+    type: 'hero-gallery',
   },
   {
     key: 'home-story',
@@ -93,18 +92,37 @@ interface StoryPhoto {
   display_order: number
 }
 
+interface HeroMedia {
+  id: number
+  url: string
+  type: 'image' | 'video' | 'gif'
+  display_order: number
+}
+
+// Helper to generate unique paths outside of the component to avoid react-hooks/purity errors with Date.now()
+function makeUniquePath(folder: string, prefix: string, ext?: string, index?: number): string {
+  const cleanExt = ext || 'jpg'
+  const timestamp = Date.now()
+  const suffix = index !== undefined ? `-${index}` : ''
+  return `${folder}/${prefix}-${timestamp}${suffix}.${cleanExt}`
+}
+
+function getMediaType(filename: string): 'image' | 'video' | 'gif' {
+  const ext = filename.split('.').pop()?.toLowerCase()
+  if (ext === 'gif') return 'gif'
+  if (['mp4', 'webm', 'ogg', 'mov'].includes(ext || '')) return 'video'
+  return 'image'
+}
+
 export default function ManageSiteImages() {
   const [currentImages, setCurrentImages] = useState<Record<string, string>>(DEFAULTS)
   const [galleries, setGalleries] = useState<Record<string, StoryPhoto[]>>({
     'home-story': [],
     'about-story': []
   })
+  const [heroGallery, setHeroGallery] = useState<HeroMedia[]>([])
   const [uploading, setUploading] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-
-  useEffect(() => {
-    fetchImages()
-  }, [])
 
   const fetchImages = async () => {
     // Single images
@@ -124,14 +142,24 @@ export default function ManageSiteImages() {
       'home-story': homePhotos || [],
       'about-story': aboutPhotos || []
     })
+
+    // Hero gallery
+    const { data: heroData } = await supabase.from('hero_gallery').select('*').order('display_order')
+    setHeroGallery(heroData || [])
   }
+
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      fetchImages()
+    })
+  }, [])
 
   const handleUploadSingle = async (slotKey: string, file: File) => {
     setUploading(slotKey)
     setSuccess(null)
     try {
       const ext = file.name.split('.').pop()
-      const path = `site/${slotKey}-${Date.now()}.${ext}`
+      const path = makeUniquePath('site', slotKey, ext)
 
       const { error: upErr } = await supabase.storage.from('images').upload(path, file, { upsert: true })
       if (upErr) throw upErr
@@ -147,8 +175,9 @@ export default function ManageSiteImages() {
       setCurrentImages(prev => ({ ...prev, [slotKey]: publicUrl }))
       setSuccess(slotKey)
       setTimeout(() => setSuccess(null), 3000)
-    } catch (err: any) {
-      alert('Upload failed: ' + err.message)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      alert('Upload failed: ' + msg)
     } finally {
       setUploading(null)
     }
@@ -165,7 +194,7 @@ export default function ManageSiteImages() {
       for (let i = 0; i < files.length; i++) {
         const file = files[i]
         const ext = file.name.split('.').pop()
-        const path = `story/${page}-${Date.now()}-${i}.${ext}`
+        const path = makeUniquePath('story', `${page}`, ext, i)
 
         const { error: upErr } = await supabase.storage.from('images').upload(path, file)
         if (upErr) throw upErr
@@ -182,23 +211,76 @@ export default function ManageSiteImages() {
       await fetchImages()
       setSuccess(slotKey)
       setTimeout(() => setSuccess(null), 3000)
-    } catch (err: any) {
-      alert('Upload failed: ' + err.message)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      alert('Upload failed: ' + msg)
     } finally {
       setUploading(null)
     }
   }
 
-  const handleDeleteGalleryImage = async (slotKey: string, id: number) => {
+  const handleDeleteGalleryImage = async (id: number) => {
     if (!confirm('Delete this photo?')) return
     
     try {
-      await supabase.from('story_photos').delete().eq('id', id)
+      const { error } = await supabase.from('story_photos').delete().eq('id', id)
+      if (error) throw error
       await fetchImages()
-    } catch (err: any) {
-      alert('Delete failed: ' + err.message)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      alert('Delete failed: ' + msg)
     }
   }
+
+  const handleUploadHeroGallery = async (files: FileList) => {
+    setUploading('home-hero')
+    setSuccess(null)
+    
+    try {
+      const currentCount = heroGallery.length
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        const ext = file.name.split('.').pop()
+        const mediaType = getMediaType(file.name)
+        const path = makeUniquePath('hero', 'background', ext, i)
+
+        const { error: upErr } = await supabase.storage.from('images').upload(path, file)
+        if (upErr) throw upErr
+
+        const { data: urlData } = supabase.storage.from('images').getPublicUrl(path)
+        
+        await supabase.from('hero_gallery').insert({
+          url: urlData.publicUrl,
+          type: mediaType,
+          display_order: currentCount + i
+        })
+      }
+      
+      await fetchImages()
+      setSuccess('home-hero')
+      setTimeout(() => setSuccess(null), 3000)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      alert('Upload failed: ' + msg)
+    } finally {
+      setUploading(null)
+    }
+  }
+
+  const handleDeleteHeroMedia = async (id: number) => {
+    if (!confirm('Delete this media?')) return
+    
+    try {
+      const { error } = await supabase.from('hero_gallery').delete().eq('id', id)
+      if (error) throw error
+      await fetchImages()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      alert('Delete failed: ' + msg)
+    }
+  }
+
 
   const pages = ['Home Page', 'About Page']
 
@@ -219,12 +301,9 @@ export default function ManageSiteImages() {
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
             {IMAGE_SLOTS.filter(s => s.page === page).map((slot, idx) => (
-              <motion.div
+              <div
                 key={slot.key}
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.06 }}
-                className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 overflow-hidden shadow-sm flex flex-col"
+                className={`animate-fade-in-up stagger-${Math.min(idx + 1, 6)} bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 overflow-hidden shadow-sm flex flex-col`}
               >
                 {slot.type === 'single' ? (
                   <>
@@ -242,6 +321,44 @@ export default function ManageSiteImages() {
                       )}
                     </div>
                   </>
+                ) : slot.type === 'hero-gallery' ? (
+                  <>
+                    <div className="h-40 bg-gray-50 dark:bg-gray-800 overflow-y-auto p-2 hide-scrollbar">
+                      {heroGallery.length > 0 ? (
+                        <div className="grid grid-cols-3 gap-2">
+                          {heroGallery.map(media => (
+                            <div key={media.id} className="relative group aspect-square rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700">
+                              {media.type === 'video' ? (
+                                <video src={media.url} className="w-full h-full object-cover" muted />
+                              ) : (
+                                <img src={media.url} alt="Hero media" className="w-full h-full object-cover" />
+                              )}
+                              <div className="absolute top-1 left-1">
+                                {media.type === 'video' && (
+                                  <span className="bg-black/60 text-white p-0.5 rounded-full"><Play size={8} /></span>
+                                )}
+                                {media.type === 'gif' && (
+                                  <span className="bg-black/60 text-white p-0.5 rounded-full"><Film size={8} /></span>
+                                )}
+                              </div>
+                              <button
+                                onClick={() => handleDeleteHeroMedia(media.id)}
+                                className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
+                          <span className="text-2xl mb-2"><Image /></span>
+                          <span className="text-xs">No media uploaded</span>
+                          <span className="text-[10px]">Using default static image</span>
+                        </div>
+                      )}
+                    </div>
+                  </>
                 ) : (
                   <>
                     <div className="h-40 bg-gray-50 dark:bg-gray-800 overflow-y-auto p-2 hide-scrollbar">
@@ -251,7 +368,7 @@ export default function ManageSiteImages() {
                             <div key={photo.id} className="relative group aspect-square rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700">
                               <img src={photo.url} alt="Gallery item" className="w-full h-full object-cover" />
                               <button
-                                onClick={() => handleDeleteGalleryImage(slot.key, photo.id)}
+                                onClick={() => handleDeleteGalleryImage(photo.id)}
                                 className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                               >
                                 <Trash2 size={12} />
@@ -280,9 +397,14 @@ export default function ManageSiteImages() {
                     <span className="inline-flex items-center text-[10px] font-bold uppercase tracking-wider bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-full">
                       {slot.ratio}
                     </span>
-                    {slot.type === 'gallery' && (
+                    {(slot.type === 'gallery' || slot.type === 'hero-gallery') && (
                       <span className="inline-flex items-center text-[10px] font-bold uppercase tracking-wider bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full">
                         🖼️ Multi
+                      </span>
+                    )}
+                    {slot.type === 'hero-gallery' && (
+                      <span className="inline-flex items-center text-[10px] font-bold uppercase tracking-wider bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-0.5 rounded-full">
+                        🎬 Video/GIF
                       </span>
                     )}
                   </div>
@@ -291,19 +413,21 @@ export default function ManageSiteImages() {
                   <label className="cursor-pointer w-full flex items-center justify-center gap-2 py-2 px-4 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-700 text-sm text-gray-600 dark:text-gray-400 hover:border-green-500 hover:text-green-600 dark:hover:text-green-400 transition-all mt-auto">
                     {uploading === slot.key
                       ? <><Loader2 size={16} className="animate-spin" /> Uploading...</>
-                      : <><Upload size={16} /> {slot.type === 'gallery' ? 'Add Photos' : 'Change Image'}</>
+                      : <><Upload size={16} /> {slot.type === 'gallery' || slot.type === 'hero-gallery' ? 'Add Files' : 'Change Image'}</>
                     }
                     <input
                       type="file"
-                      accept="image/*"
-                      multiple={slot.type === 'gallery'}
+                      accept="image/*,video/*,.gif"
+                      multiple={slot.type === 'gallery' || slot.type === 'hero-gallery'}
                       className="sr-only"
                       disabled={!!uploading}
                       onChange={(e) => {
                         const files = e.target.files
                         if (!files || files.length === 0) return
                         
-                        if (slot.type === 'gallery') {
+                        if (slot.type === 'hero-gallery') {
+                          handleUploadHeroGallery(files)
+                        } else if (slot.type === 'gallery') {
                           handleUploadGallery(slot.key, files)
                         } else {
                           handleUploadSingle(slot.key, files[0])
@@ -313,7 +437,7 @@ export default function ManageSiteImages() {
                     />
                   </label>
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>

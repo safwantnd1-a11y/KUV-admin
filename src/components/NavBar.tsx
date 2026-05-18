@@ -21,11 +21,16 @@ export default function NavBar() {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
-  useEffect(() => setMenuOpen(false), [location])
+  useEffect(() => {
+    if (menuOpen) {
+      setMenuOpen(false)
+    }
+  }, [location])
 
   return (
     <nav
-      className={`fixed top-0 left-0 w-full z-50 transition-all duration-500 ${
+      style={{ top: 'var(--top-banner-height, 0px)' }}
+      className={`fixed left-0 w-full z-50 transition-all duration-500 ${
         scrolled
           ? 'bg-white/90 backdrop-blur-xl shadow-md border-b border-slate-200/60'
           : 'bg-transparent'

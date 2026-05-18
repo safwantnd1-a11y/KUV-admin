@@ -62,24 +62,25 @@ const categoryLabel: Record<string, string> = {
 
 export default function ProductsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const [active, setActive] = useState<Category>((searchParams.get('cat') as Category) || 'all')
+  const active = (searchParams.get('cat') as Category) || 'all'
   const [search, setSearch] = useState('')
   const [dbProducts, setDbProducts] = useState<AppProduct[]>([])
 
-  useEffect(() => {
-    const cat = searchParams.get('cat') as Category
-    if (cat) setActive(cat)
-  }, [searchParams])
-
-  useEffect(() => {
-    fetchSupabaseProducts()
-  }, [])
+  interface SupabaseProduct {
+    id: string | number
+    title: string
+    description: string
+    category: string
+    image_url: string
+    specs?: { label: string; value: string }[]
+    badge?: string
+  }
 
   const fetchSupabaseProducts = async () => {
     try {
       const { data, error } = await supabase.from('products').select('*')
       if (data && !error) {
-        const mapped = data.map((p: any) => ({
+        const mapped = data.map((p: SupabaseProduct) => ({
           id: p.id,
           name: p.title,
           description: p.description,
@@ -95,8 +96,13 @@ export default function ProductsPage() {
     }
   }
 
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchSupabaseProducts()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const setCategory = (cat: Category) => {
-    setActive(cat)
     if (cat === 'all') setSearchParams({})
     else setSearchParams({ cat })
   }
@@ -104,7 +110,7 @@ export default function ProductsPage() {
   const allProducts: AppProduct[] = [...staticProducts, ...dbProducts]
 
   const filtered = allProducts.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || p.description.toLowerCase().includes(search.toLowerCase())
+    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || (p.description || '').toLowerCase().includes(search.toLowerCase())
     const matchesCat = active === 'all' || p.category === active
     return matchesSearch && matchesCat
   })
@@ -175,7 +181,7 @@ export default function ProductsPage() {
                 <p className="text-gray-500 dark:text-gray-400 max-w-md mx-auto">
                   {search ? `No results for "${search}".` : 'No products in this category yet. Add them via the admin panel.'}
                 </p>
-                <button onClick={() => { setSearch(''); setActive('all') }}
+                <button onClick={() => { setSearch(''); setCategory('all') }}
                   className="mt-8 px-8 py-3 bg-green-600 text-white rounded-full font-semibold hover:bg-green-700 transition-colors shadow-lg shadow-green-600/30">
                   Clear Filters
                 </button>
